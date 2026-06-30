@@ -89,19 +89,19 @@ flowchart TD
     PLAY --> RESUME[GET /books/id/audio/progress\nвозобновление с последней главы и позиции]
     RESUME --> PLAYER[AudioPlayer: капсула\nцентрированная, плавающая над низом экрана]
 
-    PLAYER --> STREAM[GET /books/id/audio/chapter_id/stream\nRange requests → 206 Partial Content]
+    PLAYER --> STREAM[GET /books/id/audio/chapter_id/stream\nRange requests, 206 Partial Content]
     STREAM --> HTML5[HTML5 audio element]
 
     HTML5 --> CONTROLS{Управление}
     CONTROLS -->|Play/Pause| PLAYPAUSE[HTMLAudioElement.play / pause]
     CONTROLS -->|±30 сек| SKIP[currentTime ± 30]
     CONTROLS -->|Перемотка| SEEK[progressbar seek]
-    CONTROLS -->|Скорость| RATE[playbackRate 0.75 / 1 / 1.25 / 1.5 / 2×]
+    CONTROLS -->|Скорость| RATE[playbackRate 0.75x / 1x / 1.25x / 1.5x / 2x]
     CONTROLS -->|Громкость| VOL[volume + mute]
-    CONTROLS -->|Следующая глава| NEXT_CH[loadChapter(idx + 1)]
+    CONTROLS -->|Следующая глава| NEXT_CH[loadChapter: idx+1]
     CONTROLS -->|Список глав| LIST[Панель выбора главы]
 
-    HTML5 -.каждые 10 сек / смена главы / закрытие.-> SAVE[POST /books/id/audio/progress\nchapter_id + position_seconds]
+    HTML5 -. каждые 10 сек, смена главы, закрытие .-> SAVE[POST /books/id/audio/progress\nchapter_id + position_seconds]
     PLAYER -->|Закрыть плеер| CLOSE[Кеш audio-progress инвалидируется\nпрогресс-бары глав обновляются]
 ```
 
@@ -153,10 +153,10 @@ flowchart TD
     KAFKA_P --> STATUS[ai_review_status = pending]
     STATUS --> KW[kafka-worker потребляет]
     KW --> READ[Прочитать файл книги\nдо 10 МБ]
-    READ --> EXTRACT[extract_book_text()\nEPUB / PDF / FB2 / TXT\nдо 18 000 символов]
+    READ --> EXTRACT[extract_book_text\nEPUB / PDF / FB2 / TXT\nдо 18 000 символов]
     EXTRACT --> SETTINGS[Прочитать AppSettings:\nprovider, api_key, model, ollama_url]
     SETTINGS --> PROV{Провайдер}
-    PROV -->|local| OLLAMA[Ollama API\nhttp://ollama:11434]
+    PROV -->|local| OLLAMA[Ollama API\nollama:11434]
     PROV -->|claude| CLAUDE[Anthropic API]
     PROV -->|openai| OPENAI[OpenAI API]
     PROV -->|gemini| GEMINI[Google Gemini API]

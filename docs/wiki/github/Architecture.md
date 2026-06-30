@@ -133,9 +133,18 @@ erDiagram
         string file_path
         string version_label
     }
-    Author { uuid id PK; string name }
-    Series { uuid id PK; string name }
-    Tag { uuid id PK; string name }
+    Author {
+        uuid id PK
+        string name
+    }
+    Series {
+        uuid id PK
+        string name
+    }
+    Tag {
+        uuid id PK
+        string name
+    }
     ReadingProgress {
         uuid id PK
         uuid user_id FK
@@ -163,7 +172,10 @@ erDiagram
         string name
         bool is_public
     }
-    AppSettings { string key PK; string value "encrypted" }
+    AppSettings {
+        string key PK
+        string value "encrypted"
+    }
     TelegramChat {
         uuid user_id FK
         string chat_id "encrypted"
@@ -406,9 +418,18 @@ erDiagram
         string file_path
         string version_label
     }
-    Author { uuid id PK; string name }
-    Series { uuid id PK; string name }
-    Tag { uuid id PK; string name }
+    Author {
+        uuid id PK
+        string name
+    }
+    Series {
+        uuid id PK
+        string name
+    }
+    Tag {
+        uuid id PK
+        string name
+    }
     ReadingProgress {
         uuid id PK
         uuid user_id FK
@@ -436,7 +457,10 @@ erDiagram
         string name
         bool is_public
     }
-    AppSettings { string key PK; string value "encrypted" }
+    AppSettings {
+        string key PK
+        string value "encrypted"
+    }
     TelegramChat {
         uuid user_id FK
         string chat_id "encrypted"
