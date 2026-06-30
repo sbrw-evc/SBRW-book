@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+    transition: background 0.15s;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+}
+
+@layer components {
+  /* ── Buttons ──────────────────────────────────────── */
+
+  .btn-primary {
+    @apply font-medium px-5 py-2.5 rounded-xl
+           disabled:opacity-50 disabled:cursor-not-allowed;
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+    transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+  .btn-primary:active:not(:disabled) {
+    transform: scale(0.97);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  }
+
+  .btn-secondary {
+    @apply font-medium px-5 py-2.5 rounded-xl;
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    background: transparent;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+  }
+  .btn-secondary:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-strong);
+    transform: translateY(-1px);
+  }
+  .btn-secondary:active { transform: scale(0.97); }
+
+  .btn-ghost {
+    @apply font-medium px-4 py-2 rounded-lg;
+    color: var(--text-secondary);
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .btn-ghost:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  /* ── Cards ────────────────────────────────────────── */
+
+  .card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    @apply rounded-2xl;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+
+  /* ── Forms ────────────────────────────────────────── */
+
+  .input {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    @apply w-full px-4 py-3 rounded-xl outline-none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  }
+  .input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-muted);
+    background-color: var(--bg-card);
+  }
+  .input::placeholder { color: var(--text-muted); }
+
+  .label {
+    @apply block text-sm font-medium mb-1.5;
+    color: var(--text-secondary);
+  }
+
+  /* ── Book card ────────────────────────────────────── */
+
+  .book-card {
+    @apply cursor-pointer;
+    transition: transform 0.25s ease;
+  }
+  .book-card:hover { transform: translateY(-4px); }
+
+  .book-cover {
+    @apply w-full aspect-[2/3] object-cover rounded-xl;
+    background-color: var(--bg-secondary);
+  }
+
+  /* ── Typography ───────────────────────────────────── */
+
+  .section-title {
+    @apply text-xl font-bold mb-4;
+    color: var(--text-primary);
+  }
+
+  .stars { @apply flex items-center gap-0.5; }
+}
+
+/* ─── Utilities ──────────────────────────────────────── */
+
+.scroll-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scroll-hide::-webkit-scrollbar { display: none; }
+
+/* ─── Reader ─────────────────────────────────────────── */
+
+#epub-container iframe {
+  width: 100% !important;
+  height: 100% !important;
+}
+.reader-night { filter: invert(1) hue-rotate(180deg); }
+
+/* ─── Star rating ────────────────────────────────────── */
+
+.star-filled { color: #fbbf24; }
+.star-empty  { color: #d1d5db; }

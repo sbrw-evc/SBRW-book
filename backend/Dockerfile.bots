@@ -1,0 +1,43 @@
+# ── Stage 1: build amneziawg-go (userspace TUN — no kernel module needed) ────
+FROM golang:1.24-bookworm AS awg-go-builder
+RUN git clone --depth=1 https://github.com/amnezia-vpn/amneziawg-go.git /src
+WORKDIR /src
+RUN go build -v -o amneziawg-go .
+
+# ── Stage 2: build amneziawg-tools (awg + awg-quick) ─────────────────────────
+FROM debian:bookworm-slim AS awg-tools-builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates git gcc libc-dev make pkg-config libmnl-dev \
+    && git clone --depth=1 https://github.com/amnezia-vpn/amneziawg-tools.git /src
+WORKDIR /src/src
+RUN make -j$(nproc)
+
+# ── Stage 3: main application image ──────────────────────────────────────────
+FROM python:3.12-slim
+
+COPY --from=awg-go-builder /src/amneziawg-go /usr/local/bin/amneziawg-go
+COPY --from=awg-tools-builder /src/src/wg /usr/local/bin/awg
+COPY --from=awg-tools-builder /src/src/wg-quick/linux.bash /usr/local/bin/awg-quick
+RUN chmod +x /usr/local/bin/awg-quick
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev gcc curl iproute2 iptables procps kmod \
+    && rm -rf /var/lib/apt/lists/*
+
+# sysctl wrapper: intercepts src_valid_mark which is already set via docker-compose sysctls
+RUN printf '#!/bin/sh\ncase " $* " in\n  *src_valid_mark*) exit 0 ;;\nesac\nexec /sbin/sysctl "$@"\n' \
+    > /usr/local/bin/sysctl && chmod +x /usr/local/bin/sysctl
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+RUN mkdir -p /app/uploads/books /app/uploads/covers
+
+COPY entrypoint.bots.sh /entrypoint.bots.sh
+RUN chmod +x /entrypoint.bots.sh
+
+ENTRYPOINT ["/entrypoint.bots.sh"]

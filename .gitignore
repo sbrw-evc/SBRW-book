@@ -1,0 +1,72 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Python / Django
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+.venv/
+venv/
+env/
+pip-log.txt
+
+# Uploads / media
+backend/uploads/
+
+# Node / frontend
+node_modules/
+frontend/node_modules/
+admin-frontend/node_modules/
+frontend/dist/
+admin-frontend/dist/
+frontend/.vite/
+admin-frontend/.vite/
+*.local
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Secrets / keys
+*.pem
+*.key
+*.p12
+*.pfx
+*.cert
+*.crt
+
+# Coverage / testing
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Temporary
+*.tmp
+*.bak
+/tmp/
+
+# Claude
+*.claude
+Снимок*

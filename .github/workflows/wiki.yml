@@ -1,0 +1,39 @@
+name: Publish Wiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/wiki/github/**'
+
+permissions:
+  contents: write
+
+jobs:
+  publish-wiki:
+    name: Sync docs to GitHub Wiki
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Checkout wiki
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: wiki
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Copy docs to wiki
+        run: cp docs/wiki/github/*.md wiki/
+
+      - name: Commit and push
+        run: |
+          cd wiki
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "docs: sync wiki from main [skip ci]"
+          git push

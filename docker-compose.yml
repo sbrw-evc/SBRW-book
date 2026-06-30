@@ -1,0 +1,265 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: sbrw_redis
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    security_opt:
+      - apparmor=unconfined
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  kafka:
+    image: apache/kafka:latest
+    container_name: sbrw_kafka
+    security_opt:
+      - apparmor=unconfined
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:7
+    container_name: sbrw_mongodb
+    security_opt:
+      - apparmor=unconfined
+    environment:
+      MONGO_INITDB_DATABASE: sbrwdb
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: sbrw_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bookuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookpass}
+      POSTGRES_DB: ${POSTGRES_DB:-bookdb}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bookuser} -d ${POSTGRES_DB:-bookdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sbrw_backend
+    security_opt:
+      - apparmor=unconfined
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bookuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookpass}
+      POSTGRES_DB: ${POSTGRES_DB:-bookdb}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-very-long-secret-key-at-least-50-chars}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-}
+      UPLOAD_DIR: /app/uploads
+      MAX_UPLOAD_SIZE: 524288000
+      DJANGO_SETTINGS_MODULE: config.settings
+      GOOGLE_BOOKS_API_KEY: ${GOOGLE_BOOKS_API_KEY:-}
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MONGODB_URL: mongodb://mongodb:27017/sbrwdb
+      LLM_SERVICE_URL: http://llm:8100
+    volumes:
+      - book_uploads:/app/uploads
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  kafka-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sbrw_kafka_worker
+    security_opt:
+      - apparmor=unconfined
+    command: python manage.py run_kafka_consumer
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bookuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookpass}
+      POSTGRES_DB: ${POSTGRES_DB:-bookdb}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-very-long-secret-key-at-least-50-chars}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-}
+      UPLOAD_DIR: /app/uploads
+      DJANGO_SETTINGS_MODULE: config.settings
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MONGODB_URL: mongodb://mongodb:27017/sbrwdb
+      LLM_SERVICE_URL: http://llm:8100
+    volumes:
+      - book_uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  sbrw-bots:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.bots
+    container_name: sbrw_bots
+    cap_add:
+      - NET_ADMIN
+      - MKNOD
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    device_cgroup_rules:
+      - "c 10:200 rwm"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    security_opt:
+      - apparmor=unconfined
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bookuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookpass}
+      POSTGRES_DB: ${POSTGRES_DB:-bookdb}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-very-long-secret-key-at-least-50-chars}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-}
+      UPLOAD_DIR: /app/uploads
+      DJANGO_SETTINGS_MODULE: config.settings
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MONGODB_URL: mongodb://mongodb:27017/sbrwdb
+    volumes:
+      - book_uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: sbrw_ollama
+    security_opt:
+      - apparmor=unconfined
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    # GPU support: uncomment if your host has an NVIDIA GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  llm:
+    build:
+      context: ./llm-service
+      dockerfile: Dockerfile
+    container_name: sbrw_llm
+    security_opt:
+      - apparmor=unconfined
+    environment:
+      OLLAMA_URL: http://ollama:11434
+    depends_on:
+      - ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8100/health')\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sbrw_frontend
+    security_opt:
+      - apparmor=unconfined
+    restart: unless-stopped
+
+  admin-frontend:
+    build:
+      context: ./admin-frontend
+      dockerfile: Dockerfile
+    container_name: sbrw_admin_frontend
+    security_opt:
+      - apparmor=unconfined
+    restart: unless-stopped
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: sbrw_nginx
+    security_opt:
+      - apparmor=unconfined
+    ports:
+      - "${APP_PORT:-80}:80"
+      - "${ADMIN_PORT:-8080}:8080"
+    depends_on:
+      - backend
+      - frontend
+      - admin-frontend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  book_uploads:
+  redis_data:
+  kafka_data:
+  mongo_data:
+  ollama_data:

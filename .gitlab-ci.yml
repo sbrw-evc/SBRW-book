@@ -1,0 +1,224 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SBRW-Book  CI/CD  |  GitLab Runner (shell executor) on 192.168.0.203
+#
+# Runner must be registered with tag `sbrw-deploy` (see docs/wiki/gitlab/).
+#
+# Secrets (POSTGRES_PASSWORD, SECRET_KEY, etc.) live in /srv/sbrw-book/.env
+# on the deployment server — never committed to git.
+#
+# Pipeline stages:
+#   build  — docker compose build --pull
+#   test   — backend (Django JUnit XML) + LLM service (pytest JUnit XML)
+#   deploy — docker compose up -d
+#   docs   — sync docs/wiki/gitlab/ → GitLab Wiki (runs independently)
+#
+# Skipping logic:
+#   If the commit touches ONLY files under docs/ or CHANGELOG.md,
+#   the build / test / deploy stages are skipped entirely and only
+#   docs:sync-wiki runs. Any change outside docs/ triggers the full pipeline.
+# ─────────────────────────────────────────────────────────────────────────────
+
+stages:
+  - build
+  - test
+  - deploy
+  - docs
+
+variables:
+  COMPOSE_PROJECT_NAME: sbrw-book
+  ENV_FILE: /srv/sbrw-book/.env
+  GIT_DEPTH: "1"
+
+default:
+  tags:
+    - sbrw-deploy
+
+# ── Shared rule: run only when non-doc code changes on main ──────────────────
+#
+# Lists every path that counts as "code". When a push touches ONLY docs/**
+# or CHANGELOG.md, none of these globs match and all code jobs are skipped.
+#
+# Note: with GIT_DEPTH=1 GitLab may lack a comparison base on the very first
+# push and conservatively evaluates `changes` as true — safe, not harmful.
+
+.on_code_change: &on_code_change
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - backend/**/*
+        - frontend/**/*
+        - admin-frontend/**/*
+        - llm-service/**/*
+        - nginx/**/*
+        - scripts/**/*
+        - docker-compose.yml
+        - .gitlab-ci.yml
+    - when: never
+
+# ── Stage: build ─────────────────────────────────────────────────────────────
+
+build:
+  stage: build
+  <<: *on_code_change
+  before_script:
+    - cp "$ENV_FILE" .env
+  script:
+    - echo "==> Building images…"
+    - docker compose build --pull
+  after_script:
+    - rm -f .env
+
+# ── Stage: test — Backend (Django) ───────────────────────────────────────────
+#
+# Generates JUnit XML via unittest-xml-reporting (installed on-the-fly into the
+# container — avoids polluting production requirements).
+# Reports are mounted from the container into $CI_PROJECT_DIR/test-reports/backend/
+# so GitLab can attach them as artifacts.
+
+test:backend:
+  stage: test
+  <<: *on_code_change
+  before_script:
+    - cp "$ENV_FILE" .env
+    - docker compose up -d db redis mongodb
+    - |
+      echo "Waiting for postgres…"
+      for i in $(seq 1 30); do
+        docker compose exec -T db pg_isready -U "${POSTGRES_USER:-bookuser}" -q && break
+        sleep 1
+      done
+    # Drop any stale test database left by a previous run that was interrupted.
+    - |
+      docker compose exec -T db psql \
+        -U "${POSTGRES_USER:-bookuser}" -d "${POSTGRES_DB:-bookdb}" \
+        -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='bookdb_test';" \
+        || true
+      docker compose exec -T db psql \
+        -U "${POSTGRES_USER:-bookuser}" -d "${POSTGRES_DB:-bookdb}" \
+        -c "DROP DATABASE IF EXISTS bookdb_test;" \
+        || true
+    - mkdir -p "$CI_PROJECT_DIR/test-reports/backend"
+  script:
+    - echo "==> Running Django tests…"
+    - |
+      docker compose run --rm \
+        -v "$CI_PROJECT_DIR/test-reports/backend:/tmp/test-reports" \
+        -e DJANGO_SETTINGS_MODULE=config.test_settings \
+        -e POSTGRES_HOST=db \
+        -e TEST_OUTPUT_DIR=/tmp/test-reports \
+        backend \
+        sh -c "pip install unittest-xml-reporting --quiet && \
+          python manage.py test apps \
+            --settings=config.test_settings \
+            --testrunner=xmlrunner.extra.djangotestrunner.XMLTestRunner \
+            --verbosity=2 \
+            --failfast \
+            --keepdb \
+            --noinput"
+  after_script:
+    - rm -f .env
+  artifacts:
+    when: always           # publish report even when tests fail
+    paths:
+      - test-reports/backend/
+    reports:
+      junit: test-reports/backend/*.xml
+    expire_in: 1 week
+
+# ── Stage: test — LLM service (pytest) ───────────────────────────────────────
+#
+# pytest's built-in --junitxml flag writes the report directly to the mounted
+# directory without any extra packages.
+
+test:llm:
+  stage: test
+  <<: *on_code_change
+  before_script:
+    - cp "$ENV_FILE" .env
+    - mkdir -p "$CI_PROJECT_DIR/test-reports/llm"
+  script:
+    - echo "==> Running LLM service tests…"
+    - |
+      docker compose run --rm \
+        -v "$CI_PROJECT_DIR/test-reports/llm:/tmp/test-reports" \
+        llm \
+        pytest tests/ -v --junitxml=/tmp/test-reports/pytest.xml
+  after_script:
+    - rm -f .env
+  artifacts:
+    when: always
+    paths:
+      - test-reports/llm/
+    reports:
+      junit: test-reports/llm/pytest.xml
+    expire_in: 1 week
+
+# ── Stage: deploy ─────────────────────────────────────────────────────────────
+
+deploy:
+  stage: deploy
+  <<: *on_code_change
+  environment:
+    name: production
+    url: http://192.168.0.203
+  before_script:
+    - cp "$ENV_FILE" .env
+  script:
+    - echo "==> Bringing up containers…"
+    - docker compose up -d
+    - echo "==> Container status:"
+    - docker compose ps
+    - echo "==> Removing dangling images…"
+    - docker image prune -f
+  after_script:
+    - rm -f .env
+
+# ── Stage: docs ───────────────────────────────────────────────────────────────
+#
+# Syncs docs/wiki/gitlab/*.md into the GitLab Wiki repository whenever any of
+# those files change on the main branch. Runs independently of the code stages.
+#
+# Prerequisites — set these CI/CD variables in GitLab → Settings → CI/CD → Variables:
+#   WIKI_PUSH_TOKEN  — GitLab Project Access Token (role: Developer, scope: write_repository)
+#                      Create at: https://gitlab.evcsbrw.ru/sbrw/SBRW-book/-/settings/access_tokens
+#   GIT_USER_EMAIL   — (optional, default: ci@evcsbrw.ru) commit author e-mail
+#   GIT_USER_NAME    — (optional, default: GitLab CI) commit author name
+
+docs:sync-wiki:
+  stage: docs
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - docs/wiki/gitlab/**/*
+        - CHANGELOG.md
+    - when: never
+  script:
+    - |
+      set -e
+
+      WIKI_REPO="https://oauth2:${WIKI_PUSH_TOKEN}@gitlab.evcsbrw.ru/sbrw/SBRW-book.wiki.git"
+      WIKI_DIR="$(mktemp -d)/wiki"
+
+      echo "==> Cloning wiki repository…"
+      git clone --depth 1 "$WIKI_REPO" "$WIKI_DIR"
+
+      echo "==> Copying docs/wiki/gitlab/ → wiki root…"
+      cp docs/wiki/gitlab/*.md "$WIKI_DIR/"
+
+      echo "==> Checking for changes…"
+      cd "$WIKI_DIR"
+      git config user.email "${GIT_USER_EMAIL:-ci@evcsbrw.ru}"
+      git config user.name  "${GIT_USER_NAME:-GitLab CI}"
+
+      git add -A
+      if git diff --cached --quiet; then
+        echo "No changes detected — wiki is already up to date."
+        exit 0
+      fi
+
+      SHORT_SHA=$(echo "$CI_COMMIT_SHA" | cut -c1-8)
+      git commit -m "docs: sync from main@${SHORT_SHA} [ci skip]"
+
+      echo "==> Pushing wiki…"
+      git push origin HEAD
+      echo "==> Wiki updated successfully."

@@ -1,0 +1,16 @@
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('users', '0003_user_profile_fields'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='user',
+            name='reader_bg',
+            field=models.CharField(blank=True, max_length=50, null=True),
+        ),
+    ]

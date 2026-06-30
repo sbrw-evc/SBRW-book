@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sbrw_test
+          POSTGRES_USER: sbrw
+          POSTGRES_PASSWORD: sbrw
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.test_settings
+      POSTGRES_DB: sbrw_test
+      POSTGRES_USER: sbrw
+      POSTGRES_PASSWORD: sbrw
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+        working-directory: backend
+
+      - name: Run tests
+        run: python manage.py test apps --verbosity=2
+        working-directory: backend
+
+  llm-service-tests:
+    name: LLM Service Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+        working-directory: llm-service
+
+      - name: Run tests
+        run: python -m pytest tests/ -v --tb=short -p no:warnings
+        working-directory: llm-service
+
+  docs-lint:
+    name: Docs Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check wiki docs present
+        run: |
+          test -d docs/wiki/gitlab && echo "Wiki docs present"
+          ls docs/wiki/gitlab/*.md

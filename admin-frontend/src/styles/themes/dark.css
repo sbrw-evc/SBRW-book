@@ -1,0 +1,53 @@
+/* ─── Dark Theme ─────────────────────────────────────────
+   Near-black surfaces, bright red accent, deep shadows
+   ──────────────────────────────────────────────────────── */
+
+[data-theme="dark"] {
+  /* Primary scale — Vivid Red (slightly brighter on dark bg) */
+  --color-p50:  255 241 241;
+  --color-p100: 255 225 225;
+  --color-p200: 255 199 199;
+  --color-p300: 255 160 160;
+  --color-p400: 255 107 107;
+  --color-p500: 255 75 75;
+  --color-p600: 255 64 64;
+  --color-p700: 230 48 48;
+  --color-p800: 200 32 32;
+  --color-p900: 170 20 20;
+
+  /* Surfaces (4 elevation levels) */
+  --bg:            #0e0e0e;
+  --bg-secondary:  #171717;
+  --bg-card:       #1e1e1e;
+  --bg-hover:      #282828;
+  --bg-active:     #323232;
+
+  /* Borders */
+  --border:        #2c2c2c;
+  --border-strong: #404040;
+
+  /* Text */
+  --text-primary:   #edece6;
+  --text-secondary: #88887f;
+  --text-muted:     #545450;
+
+  /* Accent */
+  --accent:        #ff4040;
+  --accent-hover:  #e63030;
+  --accent-muted:  rgba(255, 64, 64, 0.12);
+
+  /* Shadows (deeper on dark) */
+  --shadow:        0 1px 3px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.35);
+  --shadow-md:     0 4px 14px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.4);
+  --shadow-lg:     0 10px 36px rgba(0,0,0,0.65), 0 4px 12px rgba(0,0,0,0.5);
+  --shadow-hover:  0 8px 30px rgba(0,0,0,0.75), 0 3px 8px rgba(0,0,0,0.55);
+
+  /* Hero gradient */
+  --hero-gradient: linear-gradient(135deg, #cc2222 0%, #500000 100%);
+
+  /* Header glass */
+  --header-bg: rgba(14, 14, 14, 0.90);
+
+  /* Overlay */
+  --overlay: rgba(0, 0, 0, 0.72);
+}

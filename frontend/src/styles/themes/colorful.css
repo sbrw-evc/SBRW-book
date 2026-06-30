@@ -1,0 +1,53 @@
+/* ─── Colorful Theme ─────────────────────────────────────
+   Lavender tinted surfaces, indigo accent, colored shadows
+   ──────────────────────────────────────────────────────── */
+
+[data-theme="colorful"] {
+  /* Primary scale — Indigo */
+  --color-p50:  238 242 255;
+  --color-p100: 224 231 255;
+  --color-p200: 199 210 254;
+  --color-p300: 165 180 252;
+  --color-p400: 129 140 248;
+  --color-p500: 99  102 241;
+  --color-p600: 79  70  229;
+  --color-p700: 67  56  202;
+  --color-p800: 55  48  163;
+  --color-p900: 49  46  129;
+
+  /* Surfaces */
+  --bg:            #f5f4ff;
+  --bg-secondary:  #eeecff;
+  --bg-card:       #ffffff;
+  --bg-hover:      #e9e6ff;
+  --bg-active:     #e0dcff;
+
+  /* Borders */
+  --border:        #dbd7ff;
+  --border-strong: #c2bcff;
+
+  /* Text */
+  --text-primary:   #14103e;
+  --text-secondary: #524da0;
+  --text-muted:     #8e88c6;
+
+  /* Accent */
+  --accent:        #4f46e5;
+  --accent-hover:  #4338ca;
+  --accent-muted:  rgba(79, 70, 229, 0.10);
+
+  /* Shadows (colored with indigo tint) */
+  --shadow:        0 1px 3px rgba(79,70,229,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:     0 4px 14px rgba(79,70,229,0.13), 0 2px 4px rgba(79,70,229,0.08);
+  --shadow-lg:     0 10px 36px rgba(79,70,229,0.17), 0 4px 12px rgba(79,70,229,0.11);
+  --shadow-hover:  0 8px 30px rgba(79,70,229,0.24), 0 3px 8px rgba(79,70,229,0.15);
+
+  /* Hero gradient */
+  --hero-gradient: linear-gradient(135deg, #4f46e5 0%, #1e1b6e 100%);
+
+  /* Header glass */
+  --header-bg: rgba(245, 244, 255, 0.88);
+
+  /* Overlay */
+  --overlay: rgba(20, 16, 62, 0.60);
+}
